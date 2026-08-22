@@ -86,3 +86,27 @@ test("merging a player into themselves does nothing", () => {
   const p = mkPlayer("Lonely");
   assert.equal(store.mergePlayers(p.id, p.id), null);
 });
+
+/* ---- claiming an account and correcting the name WhatsApp gave you ---- */
+
+test("claiming keeps the WhatsApp name as an alias so imports still match", () => {
+  const p = mkPlayer("Y44BBE");
+  // what POST /api/set-pin does when displayName differs
+  store.addAlias(p.id, p.name);
+  store.updatePlayer(p.id, { name: "Dave Sutcliffe" });
+
+  assert.equal(store.getPlayerByName("Dave Sutcliffe").id, p.id);
+  assert.equal(store.getPlayerByAnyName("Y44BBE").id, p.id, "old WhatsApp name still imports");
+  assert.deepEqual(store.listAliases(p.id), ["Y44BBE"]);
+});
+
+test("a claimed name cannot collide with a player or an alias", () => {
+  const taken = mkPlayer("Nick Marns");
+  const aliased = mkPlayer("Colin Baker");
+  store.addAlias(aliased.id, "Cb");
+
+  // the endpoint refuses whenever getPlayerByAnyName finds somebody
+  assert.equal(store.getPlayerByAnyName("Nick Marns").id, taken.id, "an existing name is taken");
+  assert.equal(store.getPlayerByAnyName("Cb").id, aliased.id, "somebody else's alias is taken");
+  assert.equal(store.getPlayerByAnyName("Nobody Has This"), undefined, "a free name is free");
+});

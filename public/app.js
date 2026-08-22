@@ -86,6 +86,14 @@ function renderLogin() {
             ${S.players.map(p => `<option value="${esc(p.name)}">${esc(p.name)}${p.hasPin ? "" : " &mdash; set a PIN"}</option>`).join("")}
           </select>
         </div>
+        <div id="nameWrap" class="field hide">
+          <label for="realName">Your name</label>
+          <input id="realName" autocomplete="name" maxlength="60">
+          <p class="muted" style="margin:6px 0 0;font-size:.82em">
+            This is how you'll appear on the table. WhatsApp may have shown you
+            under something odd &mdash; change it here. Your picks still import either way.
+          </p>
+        </div>
         <div class="field">
           <label for="pin" id="pinLabel">PIN</label>
           <input id="pin" class="pin-input" type="password" inputmode="numeric"
@@ -98,7 +106,7 @@ function renderLogin() {
         </div>
         <button class="btn" type="button" id="go" disabled>Sign in</button>
         <p class="muted center" style="margin-top:12px" id="loginHint">
-          First time? Choose your name and pick a 4-digit PIN.
+          First time? Find yourself in the list, check your name, and pick a 4-digit PIN.
         </p>
       </div>
     </div>`;
@@ -109,6 +117,11 @@ function renderLogin() {
 
   function update() {
     const newUser = isNew();
+    $("#nameWrap").classList.toggle("hide", !newUser);
+    const rn = $("#realName");
+    if (newUser && rn.dataset.for !== who.value) {   // prefill once per selection
+      rn.value = who.value; rn.dataset.for = who.value;
+    }
     $("#confirmWrap").classList.toggle("hide", !newUser);
     $("#pinLabel").textContent = newUser ? "Choose a 4-digit PIN" : "PIN";
     go.textContent = newUser ? "Set PIN and sign in" : "Sign in";
@@ -130,7 +143,8 @@ function renderLogin() {
     try {
       if (newUser) {
         if (pin.value !== pin2.value) throw new Error("The two PINs do not match.");
-        S.me = await api("/api/set-pin", { method:"POST", body:{ name, pin: pin.value } });
+        S.me = await api("/api/set-pin",
+          { method:"POST", body:{ name, pin: pin.value, displayName: $("#realName").value.trim() } });
       } else {
         S.me = await api("/api/login", { method:"POST", body:{ name, pin: pin.value } });
       }

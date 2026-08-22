@@ -56,7 +56,7 @@ app.post("/api/login", (req, res) => {
 
 // First time in: claim your name by choosing a PIN. Only works while unset.
 app.post("/api/set-pin", (req, res) => {
-  const { name, pin } = req.body || {};
+  const { name, pin, displayName } = req.body || {};
   if (auth.ipThrottled(req)) return res.status(429).json({ error: "Too many attempts. Try again later." });
   store.recordAttempt(auth.clientIp(req));
   if (!auth.isValidPinFormat(String(pin ?? "")))
@@ -68,10 +68,23 @@ app.post("/api/set-pin", (req, res) => {
   if (!player) return res.status(404).json({ error: "No such player." });
   if (player.pin_hash) return res.status(409).json({ error: "That player already has a PIN." });
 
+  // A player claiming their account may correct the name WhatsApp gave them —
+  // the organiser has no way of knowing that "Y44BBE" is Dave. The WhatsApp
+  // name becomes an alias, so imports still find them under it.
+  const wanted = String(displayName ?? "").trim();
+  if (wanted && wanted !== player.name) {
+    if (wanted.length > 60) return res.status(400).json({ error: "That name is too long." });
+    if (store.getPlayerByAnyName(wanted))
+      return res.status(409).json({ error: "Somebody is already using that name." });
+    store.addAlias(player.id, player.name);
+    store.updatePlayer(player.id, { name: wanted });
+  }
+
   const { hash, salt } = auth.hashPin(String(pin));
   store.setPin(player.id, hash, salt);
   auth.startSession(res, player.id);
-  res.json({ id: player.id, name: player.name, isAdmin: !!player.is_admin });
+  const fresh = store.getPlayer(player.id);
+  res.json({ id: fresh.id, name: fresh.name, isAdmin: !!fresh.is_admin });
 });
 
 app.post("/api/change-pin", requireLogin, (req, res) => {
