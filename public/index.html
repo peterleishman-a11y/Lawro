@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14532d">
+<meta name="description" content="Score-prediction league">
+<title>Lawro</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<header class="hide" id="appHeader">
+  <div class="bar">
+    <h1 id="leagueName">Lawro</h1>
+    <span class="who" id="whoami"></span>
+    <button id="signOut" type="button">Sign out</button>
+  </div>
+</header>
+
+<nav class="tabs hide" id="tabs" role="tablist"></nav>
+
+<main class="wrap" id="main">
+  <div class="spinner">Loading&hellip;</div>
+</main>
+
+<div class="savebar hide" id="saveBar">
+  <div class="inner">
+    <span class="count" id="saveCount"></span>
+    <button class="btn" type="button" id="saveBtn">Save predictions</button>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>

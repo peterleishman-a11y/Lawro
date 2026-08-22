@@ -1,0 +1,19 @@
+{
+  "name": "lawro",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Score-prediction league for the Lawro WhatsApp group",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "seed": "node src/seed.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "better-sqlite3": "^11.5.0",
+    "express": "^4.21.1"
+  }
+}
