@@ -133,6 +133,16 @@ th, td { text-align:left; padding:9px 8px; border-bottom:1px solid var(--line); 
 th { font-size:.72em; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
 td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
 td.name { white-space:normal; min-width:120px; }
+/* Editable name in the admin table: reads as text until focused, so the list
+   still scans as a list rather than a wall of input boxes. */
+input.namein {
+  border:1px solid transparent; background:transparent; padding:4px 6px;
+  min-height:32px; font:inherit; font-weight:600; width:100%; max-width:220px;
+  border-radius:6px;
+}
+input.namein:hover { border-color:#d7ded7; background:#fff; }
+input.namein:focus { border-color:#166534; background:#fff; outline:none; }
+.alsoknown { font-size:.74em; color:#6b7280; margin-top:2px; }
 tr.me { background:var(--green-pale); font-weight:700; }
 /* The pundit is in the table but not in the running — purple keeps him
    visually separate from the paying players. */

@@ -841,13 +841,57 @@ async function adminPlayers() {
       catch (e) { flash("bad", e.message); }
     });
 
+    // Editable in place: WhatsApp names like "Gc" or "Y44BBE" are how the
+    // export identifies people, not what anyone wants on the table.
     const nameCell = el("td","name");
-    nameCell.append(document.createTextNode(p.name));
+    const nameIn = el("input"); nameIn.value = p.name; nameIn.className = "namein";
+    nameIn.setAttribute("aria-label", `Name for ${p.name}`);
+    const saveName = async () => {
+      const v = nameIn.value.trim();
+      if (!v || v === p.name) { nameIn.value = p.name; return; }
+      try {
+        await api(`/api/admin/players/${p.id}`, { method:"PUT", body:{ name: v } });
+        flash("ok", `${p.name} is now ${v}. The old name still matches on import.`);
+        await go("admin");
+      } catch (e) { flash("bad", e.message); nameIn.value = p.name; }
+    };
+    nameIn.addEventListener("blur", saveName);
+    nameIn.addEventListener("keydown", e => { if (e.key === "Enter") nameIn.blur(); });
+    nameCell.append(nameIn);
     if (p.is_admin) nameCell.append(el("span","pill wa"," admin"));
     if (p.is_fallback) nameCell.append(el("span","pill pundit"," pundit"));
+    if (p.aliases?.length) {
+      const also = el("div","alsoknown");
+      also.textContent = `also imports as ${p.aliases.join(", ")}`;
+      nameCell.append(also);
+    }
     const pinCell = el("td","num"); pinCell.textContent = p.has_pin ? "set" : "—";
     const paidCell = el("td","num"); paidCell.append(paid);
-    const actCell = el("td","num"); actCell.append(reset);
+    // Merge: two rows, one human — someone who submitted under two WhatsApp
+    // names. Picks move across and the absorbed name becomes an alias.
+    const merge = el("button", null, "Merge…");
+    merge.type = "button"; merge.className = "btn ghost small";
+    merge.addEventListener("click", async () => {
+      const others = players.filter(o => o.id !== p.id && !o.is_admin && !o.is_fallback);
+      const who = prompt(
+        `Merge another player INTO ${p.name}.\n\n` +
+        `Type the name exactly. Their picks move to ${p.name}, and their name ` +
+        `keeps matching on future imports. Where both picked the same game, ` +
+        `${p.name}'s pick is kept.\n\n` +
+        others.map(o => o.name).join("\n"));
+      if (!who) return;
+      const src = others.find(o => o.name.toLowerCase() === who.trim().toLowerCase());
+      if (!src) return flash("bad", `No player called "${who.trim()}".`);
+      if (!confirm(`Merge ${src.name} into ${p.name}? This cannot be undone.`)) return;
+      try {
+        const r = await api(`/api/admin/players/${p.id}/merge`, { method:"POST", body:{ sourceId: src.id } });
+        flash("ok", `${r.absorbed} merged into ${r.into}: ${r.moved} picks moved` +
+                    (r.discarded ? `, ${r.discarded} duplicate picks discarded.` : "."));
+        await go("admin");
+      } catch (e) { flash("bad", e.message); }
+    });
+
+    const actCell = el("td","num"); actCell.append(merge, reset);
     tr.append(nameCell, pinCell, paidCell, actCell);
     tb.append(tr);
   }

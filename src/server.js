@@ -246,7 +246,9 @@ app.post("/api/admin/rounds/:id/import", requireLogin, requireAdmin, (req, res) 
   const created = [], skipped = [];
   let picksSaved = 0;
   for (const entry of parsed.entries) {
-    let player = store.getPlayerByName(entry.player);
+    // By alias too: someone who changed their WhatsApp name, or was renamed
+    // here from whatever the export called them, still resolves to one player.
+    let player = store.getPlayerByAnyName(entry.player);
     if (!player) {
       if (!req.body?.createMissing) { skipped.push(entry.player); continue; }
       store.createPlayer(entry.player);
@@ -346,7 +348,22 @@ app.post("/api/admin/rounds/:id/bbc-predictions", requireLogin, requireAdmin, as
 });
 
 app.get("/api/admin/players", requireLogin, requireAdmin, (_req, res) =>
-  res.json(store.allPlayers()));
+  res.json(store.allPlayers().map(p => ({ ...p, aliases: store.listAliases(p.id) }))));
+
+/** Fold a duplicate player into the one being kept. */
+app.post("/api/admin/players/:id/merge", requireLogin, requireAdmin, (req, res) => {
+  const keepId = asInt(req.params.id);
+  const sourceId = asInt(req.body?.sourceId);
+  if (!keepId || !sourceId) return res.status(400).json({ error: "Two players are needed." });
+  if (keepId === sourceId) return res.status(400).json({ error: "That is the same player." });
+  const source = store.getPlayer(sourceId);
+  if (!store.getPlayer(keepId) || !source) return res.status(404).json({ error: "No such player." });
+  if (source.is_admin) return res.status(409).json({ error: "Remove admin from that player first." });
+  if (source.is_fallback) return res.status(409).json({ error: "That player is the pundit." });
+  const result = store.mergePlayers(keepId, sourceId);
+  if (!result) return res.status(409).json({ error: "Could not merge those two." });
+  res.json(result);
+});
 
 app.post("/api/admin/players", requireLogin, requireAdmin, (req, res) => {
   const name = String(req.body?.name || "").trim();
@@ -370,6 +387,9 @@ app.put("/api/admin/players/:id", requireLogin, requireAdmin, (req, res) => {
     const admins = store.allPlayers().filter(p => p.is_admin).length;
     if (admins <= 1) return res.status(409).json({ error: "There has to be at least one admin." });
   }
+  // Renaming keeps the old name as an alias, so the next WhatsApp import still
+  // recognises them instead of creating a second player under the old name.
+  if (name && name.trim() !== player.name) store.addAlias(id, player.name);
   store.updatePlayer(id, {
     ...(name ? { name: name.trim() } : {}),
     ...(is_admin === undefined ? {} : { is_admin: is_admin ? 1 : 0 }),
