@@ -192,6 +192,11 @@ src/
   seed.js      bootstrap a league
 public/        the mobile-first front end
 test/          38 tests
+
+render.yaml    Render blueprint (disk at /var/data)
+fly.toml       Fly config (volume at /data)
+Dockerfile     used by Fly; not needed for Render
+.github/       CI: tests on Node 20 and 22, then a health probe
 ```
 
 ## Privacy
