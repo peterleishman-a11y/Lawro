@@ -1,5 +1,7 @@
 # Lawro
 
+[![tests](https://github.com/peterleishman-a11y/Lawro/actions/workflows/test.yml/badge.svg)](https://github.com/peterleishman-a11y/Lawro/actions/workflows/test.yml)
+
 A score-prediction league for the **Lawro** WhatsApp group. Players sign in on
 their phone, tap in ten scores, and the table works itself out.
 
