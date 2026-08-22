@@ -28,6 +28,16 @@ CREATE TABLE IF NOT EXISTS players (
   created_at    INTEGER NOT NULL
 );
 
+-- WhatsApp shows whatever name a sender has set for themselves, and it can
+-- change mid-season. Every name a player has ever appeared under lives here,
+-- so an import recognises them and their season total stays in one row.
+CREATE TABLE IF NOT EXISTS player_aliases (
+  alias      TEXT PRIMARY KEY,             -- matched case-insensitively
+  player_id  INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_aliases_player ON player_aliases(player_id);
+
 CREATE TABLE IF NOT EXISTS sessions (
   token      TEXT PRIMARY KEY,
   player_id  INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
@@ -117,9 +127,77 @@ export const getFallbackPlayer = () =>
 export const getPlayer = id => db.prepare("SELECT * FROM players WHERE id = ?").get(id);
 export const getPlayerByName = name =>
   db.prepare("SELECT * FROM players WHERE name = ? COLLATE NOCASE").get(name);
+/**
+ * Resolve a WhatsApp sender to a player: their current name first, then any
+ * name they have previously gone by. Imports use this so a renamed player is
+ * still recognised the next time the group's export is pasted in.
+ */
+export const getPlayerByAnyName = name => {
+  const direct = getPlayerByName(name);
+  if (direct) return direct;
+  const row = db.prepare(
+    `SELECT p.* FROM player_aliases a JOIN players p ON p.id = a.player_id
+     WHERE a.alias = ? COLLATE NOCASE`).get(String(name ?? "").trim());
+  return row || undefined;
+};
+export const listAliases = playerId =>
+  db.prepare("SELECT alias FROM player_aliases WHERE player_id = ? ORDER BY alias COLLATE NOCASE")
+    .all(playerId).map(r => r.alias);
+export const allAliases = () =>
+  db.prepare("SELECT alias, player_id FROM player_aliases").all();
+/** Silently ignores an alias that is already taken, or equals a player's name. */
+export const addAlias = (playerId, alias) => {
+  const a = String(alias ?? "").trim();
+  if (!a) return false;
+  const owner = getPlayerByName(a);
+  if (owner && owner.id !== playerId) return false;
+  try {
+    db.prepare("INSERT INTO player_aliases (alias, player_id, created_at) VALUES (?,?,?)")
+      .run(a, playerId, Date.now());
+    return true;
+  } catch { return false; }          // UNIQUE clash: already pointed somewhere
+};
+export const removeAlias = alias =>
+  db.prepare("DELETE FROM player_aliases WHERE alias = ? COLLATE NOCASE").run(alias);
+
 export const createPlayer = (name, isAdmin = 0, isFallback = 0) =>
   db.prepare("INSERT INTO players (name, is_admin, is_fallback, created_at) VALUES (?,?,?,?)")
     .run(name.trim(), isAdmin ? 1 : 0, isFallback ? 1 : 0, Date.now());
+/**
+ * Fold `sourceId` into `keepId`: the source's picks move across, its name and
+ * aliases become aliases of the keeper, and the source row is deleted.
+ *
+ * Where both players picked the same game the keeper's pick stands — a merge
+ * is for one human who appeared twice, so the duplicate is the same person
+ * having submitted twice, and the keeper is the row the admin chose to keep.
+ * Returns what happened so the admin panel can say so rather than merging
+ * silently.
+ */
+export const mergePlayers = (keepId, sourceId) => {
+  const keep = getPlayer(keepId), src = getPlayer(sourceId);
+  if (!keep || !src || keepId === sourceId) return null;
+
+  const run = db.transaction(() => {
+    const clashes = db.prepare(
+      `SELECT COUNT(*) AS n FROM predictions a
+       JOIN predictions b ON b.game_id = a.game_id AND b.player_id = ?
+       WHERE a.player_id = ?`).get(keepId, sourceId).n;
+
+    // Only picks the keeper has no pick for; the UNIQUE constraint would
+    // reject the rest anyway, so drop them explicitly rather than by error.
+    const moved = db.prepare(
+      `UPDATE predictions SET player_id = ? WHERE player_id = ?
+       AND game_id NOT IN (SELECT game_id FROM predictions WHERE player_id = ?)`)
+      .run(keepId, sourceId, keepId).changes;
+
+    db.prepare("UPDATE player_aliases SET player_id = ? WHERE player_id = ?").run(keepId, sourceId);
+    db.prepare("DELETE FROM players WHERE id = ?").run(sourceId);   // cascades the rest
+    addAlias(keepId, src.name);
+    return { moved, discarded: clashes, absorbed: src.name, into: keep.name };
+  });
+  return run();
+};
+
 export const setPin = (id, hash, salt) =>
   db.prepare("UPDATE players SET pin_hash=?, pin_salt=?, failed_count=0, locked_until=0 WHERE id=?")
     .run(hash, salt, id);
