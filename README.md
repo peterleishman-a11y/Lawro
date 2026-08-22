@@ -127,15 +127,55 @@ npm test                    # 38 tests, no network needed
 
 ### Deploying
 
-It's a plain Node server with a SQLite file, so anywhere that runs Node works —
-Fly.io, Railway, Render, a VPS. Two things to get right:
+It's a plain Node server with a SQLite file, so it needs a host with a **real
+persistent disk**. Config for two is committed:
 
-- **`DATABASE_PATH` must point at a persistent disk.** On a platform with an
-  ephemeral filesystem the league resets on every deploy.
+| | Render | Fly.io |
+|---|---|---|
+| Config | `render.yaml` | `fly.toml` + `Dockerfile` |
+| Setup | Connect repo in dashboard | `fly launch --no-deploy` then `fly deploy` |
+| Disk | 1 GB at `/var/data` | 1 GB volume at `/data` |
+| Scale to zero | No | Yes (`auto_stop_machines`) |
+
+**Render** — New → Blueprint, point at this repo, it reads `render.yaml`. Note
+that Render disks require a paid instance type; free instances get no disk, and
+without one the league resets on every deploy.
+
+**Fly** — needs the volume created before the first deploy:
+
+```
+fly launch --no-deploy
+fly volumes create lawro_data --size 1 --region lhr
+fly deploy
+```
+
+Then set the first admin, and clear the variables once you've logged in:
+
+```
+fly secrets set ADMIN_NAME="Your Name" ADMIN_PIN=1234   # or the Render dashboard
+```
+
+**Serverless hosts do not work.** Vercel, Netlify Functions, Cloudflare Workers
+and Lambda all have ephemeral filesystems: the SQLite file is recreated empty on
+every cold start and isn't shared between invocations, so the app boots, looks
+fine, and silently loses every prediction. Going serverless means replacing the
+storage layer first — see below.
+
+**Never run more than one instance.** SQLite is one file on one disk, so exactly
+one process may write to it. Both configs pin a single machine.
+
+Whatever the host:
+
+- **`DATABASE_PATH` must point at the mounted disk**, not the container filesystem.
 - **Set `SECURE_COOKIES=1`** once it's behind HTTPS.
+- **`/api/health`** touches the database, so a passing probe means the disk is
+  genuinely reachable rather than just Node being up.
 
-Every database call is in `src/db.js` and nothing else touches SQLite, so
-moving to Postgres or D1 means rewriting that one file.
+Every database call is in `src/db.js` and nothing else touches SQLite. Moving to
+a hosted database means rewriting that file — but note `better-sqlite3` is
+*synchronous* and hosted clients are *async*, so the ~99 call sites in
+`server.js`, `auth.js` and `seed.js` need `await` too. Turso (libSQL) keeps the
+SQL identical; Postgres also changes the dialect.
 
 ## Layout
 

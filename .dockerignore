@@ -1,0 +1,13 @@
+node_modules
+data
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+.env
+.git
+.github
+test
+README.md
+render.yaml
+fly.toml

@@ -1,0 +1,41 @@
+# Fly.io config. Deploy with:  fly launch --no-deploy   (accepts this file)
+#                              fly volumes create lawro_data --size 1 --region lhr
+#                              fly deploy
+app = "lawro"
+primary_region = "lhr"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "3000"
+  DATABASE_PATH = "/data/lawro.db"   # on the volume, not the container fs
+  SECURE_COOKIES = "1"               # Fly terminates TLS in front of us
+
+# SQLite is a single file on a single disk, so exactly one machine may write
+# to it. Never scale this past one instance without swapping the storage.
+[[mounts]]
+  source = "lawro_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "stop"    # scales to zero between rounds; keeps cost near nil
+  auto_start_machines = true
+  min_machines_running = 0
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 40
+    hard_limit = 80
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/api/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

@@ -1,0 +1,28 @@
+# Render blueprint. In the Render dashboard: New > Blueprint, point it at this
+# repo, and it reads this file. Note the disk: SQLite needs somewhere durable,
+# and Render disks require a paid instance type (free instances get no disk).
+services:
+  - type: web
+    name: lawro
+    runtime: node
+    plan: starter          # disks are unavailable on `free`
+    region: frankfurt      # closest to the group; oregon/ohio/singapore also valid
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    disk:
+      name: lawro-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: DATABASE_PATH
+        value: /var/data/lawro.db    # on the mounted disk, NOT the ephemeral fs
+      - key: SECURE_COOKIES
+        value: "1"                   # Render terminates TLS in front of us
+      - key: NODE_VERSION
+        value: "22"
+      # Set these in the dashboard for the first login, then clear them.
+      - key: ADMIN_NAME
+        sync: false
+      - key: ADMIN_PIN
+        sync: false

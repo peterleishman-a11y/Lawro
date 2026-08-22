@@ -396,6 +396,18 @@ app.post("/api/admin/settings", requireLogin, requireAdmin, (req, res) => {
 
 app.get("/api/settings", requireLogin, (_req, res) => res.json(store.getSettings()));
 
+/* ============================ health ============================ */
+// Platform health checks (Render, Fly) hit this. Touches the DB so a probe
+// failure means the disk is genuinely unreachable, not just that Node is up.
+app.get("/api/health", (_req, res) => {
+  try {
+    store.getSettings();
+    res.json({ ok: true });
+  } catch {
+    res.status(503).json({ ok: false });
+  }
+});
+
 /* ============================ static ============================ */
 app.use(express.static(join(ROOT, "public"), { maxAge: "1h" }));
 app.get("*", (req, res, next) => {
