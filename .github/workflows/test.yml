@@ -40,3 +40,20 @@ jobs:
             sleep 1
           done
           echo "server did not become healthy in 20s"; exit 1
+
+  # One stable check name for branch protection to require. Matrix job names
+  # ("test (20)", "test (22)") are generated from the matrix, so requiring them
+  # directly means protection silently stops covering a version the day someone
+  # adds one. This job's name never changes.
+  #
+  # always() matters: without it a failed matrix leg would leave this job
+  # skipped, and GitHub can count a skipped required check as satisfied.
+  ci:
+    if: always()
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every test job to have passed
+        run: |
+          echo "test matrix result: ${{ needs.test.result }}"
+          [ "${{ needs.test.result }}" = "success" ] || exit 1
